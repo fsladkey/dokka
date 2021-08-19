@@ -314,9 +314,8 @@ class JavadocParser(
         }
 
         private fun PsiElement.toDocumentationLinkString(
-            labelElement: List<PsiElement>? = null
+            label: String = ""
         ): String {
-            val label = labelElement?.toList().takeUnless { it.isNullOrEmpty() } ?: listOf(defaultLabel())
 
             val dri = reference?.resolve()?.takeIf { it !is PsiParameter }?.let {
                 val dri = DRI.from(it)
@@ -324,7 +323,7 @@ class JavadocParser(
                 dri.toString()
             } ?: UNRESOLVED_PSI_ELEMENT
 
-            return """<a data-dri="$dri">${label.joinToString(" ") { it.text }}</a>"""
+            return """<a data-dri="$dri">${label.ifBlank{ defaultLabel().text }}</a>"""
         }
 
         private fun convertInlineDocTag(
@@ -334,9 +333,14 @@ class JavadocParser(
         ) =
             when (tag.name) {
                 "link", "linkplain" -> tag.referenceElement()
-                    ?.toDocumentationLinkString(tag.dataElements.filterIsInstance<PsiDocToken>())
-                "code", "literal" -> "<code data-inline>${tag.dataElements.joinToString("") { it.stringifyElementAsText(keepFormatting = true)
-                    .toString() }.htmlEscape()}</code>"
+                    ?.toDocumentationLinkString(tag.dataElements.filterIsInstance<PsiDocToken>().joinToString("") {
+                        it.stringifyElementAsText(keepFormatting = true).orEmpty()
+                    })
+                "code", "literal" -> "<code data-inline>${
+                    tag.dataElements.joinToString("") {
+                        it.stringifyElementAsText(keepFormatting = true).orEmpty()
+                    }.htmlEscape()
+                }</code>"
                 "index" -> "<index>${tag.children.filterIsInstance<PsiDocTagValue>().joinToString { it.text }}</index>"
                 "inheritDoc" -> inheritDocResolver.resolveFromContext(context)
                     ?.fold(ParsingResult(javadocTag)) { result, e ->
